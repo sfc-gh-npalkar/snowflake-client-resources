@@ -151,16 +151,35 @@ tool_resources:
 
 ## Cost
 
-A task and an alert on a 1-minute schedule wake the warehouse every minute — appropriate for a live demo, wasteful as a steady state.
+Measured on an X-Small, this pattern splits into two very different cost profiles.
 
-**Suspend them when you're done:**
+**Dynamic Table polling is nearly free when nothing changes.** At `TARGET_LAG = '1 minute'` the table checks for source changes and, finding none, logs a `NO_DATA` refresh — a metadata-only operation that never touches the warehouse. Measured over an idle period: `0.0000` compute credits per hour, roughly `0.015` cloud-services credits per hour. Cost scales with actual data change, not with how often you poll.
+
+**The task and alert are the expensive part, and the reason is `AUTO_SUSPEND` — not the cadence itself.** Measured with a 1-minute task (each run ~17s) plus a 1-minute alert: **0.92 compute credits in a single hour**, i.e. effectively 100% warehouse uptime.
+
+This is the trap: **if your recurring schedule is shorter than the warehouse `AUTO_SUSPEND` window, the warehouse never suspends and you pay for continuous uptime no matter how trivial each run is.** A warehouse left at the common `AUTO_SUSPEND = 600` (10 minutes) will stay hot for a 1-minute *or* a 5-minute schedule alike — the cadence change saves nothing on its own.
+
+To actually reduce cost you must change both together:
+
+```sql
+-- Longer gap between runs AND a suspend window short enough to fit inside it
+ALTER TASK T_SCORE_FILL_RATE_ANOMALIES SET SCHEDULE = '5 MINUTE';
+ALTER WAREHOUSE <WAREHOUSE> SET AUTO_SUSPEND = 60;
+```
+
+Note that per-resume billing has a 60-second minimum, so a 17-second scoring run bills a full minute. At a 5-minute cadence with `AUTO_SUSPEND = 60` you pay roughly 12 minutes per hour instead of 60 — a genuine ~5x reduction, but only because the warehouse now actually sleeps.
+
+**Suspend everything when you're done:**
 
 ```sql
 ALTER TASK  T_SCORE_FILL_RATE_ANOMALIES SUSPEND;
 ALTER ALERT A_FILL_RATE_ANOMALY          SUSPEND;
+-- Dynamic Tables keep polling until explicitly suspended:
+ALTER DYNAMIC TABLE ORDER_FILL_RATE_5MIN         SUSPEND;
+ALTER DYNAMIC TABLE ORDER_FILL_RATE_5MIN_BY_PAIR SUSPEND;
 ```
 
-In production, match the cadence to how fast the team genuinely needs to know. Every 5 minutes is usually plenty and costs a fifth as much. Worth sizing against the value: if catching an incident 20 minutes sooner avoids meaningful losses, per-minute checks pay for themselves easily — but that should be an explicit calculation, not an accident.
+Sizing the decision: continuous X-Small uptime is ~24 credits/day. Match the cadence to how fast the team genuinely needs to know, and make it an explicit trade against the cost of an undetected incident rather than defaulting to the fastest possible schedule.
 
 ## Routing alerts somewhere other than email
 

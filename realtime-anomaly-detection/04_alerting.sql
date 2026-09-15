@@ -182,11 +182,25 @@ ALTER TASK  T_SCORE_FILL_RATE_ANOMALIES RESUME;
 ALTER ALERT A_FILL_RATE_ANOMALY          RESUME;
 
 ----------------------------------------------------------------------
--- COST NOTE: both objects wake the warehouse every minute. That is the
--- right cadence for a live demo, but SUSPEND them when finished or they
--- will run indefinitely. In production, match the cadence to how fast the
--- team actually needs to know -- every 5 minutes is usually plenty and
--- costs a fifth as much.
+-- COST NOTE: the expensive part is not the polling itself, it is that a
+-- schedule shorter than the warehouse AUTO_SUSPEND window stops the
+-- warehouse from ever suspending. Measured on an X-Small: a 1-minute task
+-- (~17s per run) plus a 1-minute alert = ~0.92 compute credits per hour,
+-- i.e. effectively continuous uptime.
+--
+-- A warehouse at the common AUTO_SUSPEND = 600 stays hot for a 5-minute
+-- schedule just as much as a 1-minute one, so lengthening the cadence alone
+-- saves nothing. Change both:
+--     ALTER TASK ... SET SCHEDULE = '5 MINUTE';
+--     ALTER WAREHOUSE <WH> SET AUTO_SUSPEND = 60;
+-- Per-resume billing has a 60-second minimum, so a 17-second run bills a
+-- full minute regardless.
+--
+-- SUSPEND when finished, or these run indefinitely. Note the Dynamic Tables
+-- in 02_anomaly_detection.sql keep polling separately and need their own
+-- SUSPEND -- suspending the task and alert does not stop them.
 ----------------------------------------------------------------------
 -- ALTER TASK  T_SCORE_FILL_RATE_ANOMALIES SUSPEND;
 -- ALTER ALERT A_FILL_RATE_ANOMALY          SUSPEND;
+-- ALTER DYNAMIC TABLE ORDER_FILL_RATE_5MIN         SUSPEND;
+-- ALTER DYNAMIC TABLE ORDER_FILL_RATE_5MIN_BY_PAIR SUSPEND;
