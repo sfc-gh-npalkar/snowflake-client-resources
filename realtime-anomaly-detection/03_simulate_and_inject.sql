@@ -15,8 +15,12 @@ USE SCHEMA TRADE_ANOMALY_DEMO.ANALYTICS;
 -- The seed data ends whenever 01_setup_data.sql was run, so without this
 -- there is a widening gap between the end of the series and "now", and the
 -- injected spike would sit alone after a long silence. Idempotent and safe
--- to run repeatedly; it only fills the gap that currently exists
--- (up to ~33 hours per run).
+-- to run repeatedly.
+--
+-- ROWCOUNT caps how much gap one run can close: at 20 orders/minute,
+-- 200,000 rows covers 10,000 minutes (~7 days). If the environment has sat
+-- idle longer than that, either raise ROWCOUNT or run this step twice.
+-- Verify with the gap check below before moving on.
 ----------------------------------------------------------------------
 INSERT INTO ORDERS (ORDER_ID, ORDER_TS, TRADING_PAIR, SIDE, ORDER_QTY, IS_FILLED)
 WITH bounds AS (
@@ -27,7 +31,7 @@ WITH bounds AS (
     FROM ORDERS
 ),
 gen AS (
-    SELECT SEQ8() AS rn FROM TABLE(GENERATOR(ROWCOUNT => 40000))
+    SELECT SEQ8() AS rn FROM TABLE(GENERATOR(ROWCOUNT => 200000))
 ),
 enriched AS (
     SELECT
@@ -62,6 +66,32 @@ SELECT
         > (pair_base_fail_rate * CASE WHEN HOUR(order_ts) BETWEEN 13 AND 15 THEN 1.25 ELSE 1.0 END)
                                                           AS IS_FILLED
 FROM enriched;
+
+----------------------------------------------------------------------
+-- STEP 1b -- Confirm the gap actually closed, and retrain if the
+-- environment had been idle for a long stretch.
+--
+-- The model can only score timestamps after its training window. If it was
+-- trained days ago it will be forecasting far beyond what it learned, which
+-- widens the prediction interval and dulls detection. Retraining takes ~1
+-- minute and is worth it any time the data has jumped forward.
+----------------------------------------------------------------------
+SELECT
+    DATEDIFF('minute', MAX(ORDER_TS), CURRENT_TIMESTAMP()) AS gap_minutes_should_be_near_zero,
+    COUNT(*)                                               AS total_orders
+FROM ORDERS;
+
+-- Wait for the Dynamic Tables to absorb the backfill (large gaps take a
+-- refresh cycle or two), then confirm they are current:
+SELECT MAX(BUCKET_TS) AS dt_last_bucket, COUNT(*) AS buckets FROM ORDER_FILL_RATE_5MIN;
+
+-- Retrain if the data moved forward significantly:
+-- CREATE OR REPLACE SNOWFLAKE.ML.ANOMALY_DETECTION FILL_RATE_ANOMALY_MODEL(
+--     INPUT_DATA        => TABLE(V_FILL_RATE_TRAINING),
+--     TIMESTAMP_COLNAME => 'BUCKET_TS',
+--     TARGET_COLNAME    => 'FAIL_RATE_PCT',
+--     LABEL_COLNAME     => ''
+-- );
 
 ----------------------------------------------------------------------
 -- STEP 2 -- Inject the incident: a burst of failures on ONE pair,
