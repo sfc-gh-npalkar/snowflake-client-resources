@@ -1,5 +1,5 @@
 -- One-time setup, run by an admin.
--- Replace <owner>/<repo> with your GitHub repo, and COMPUTE_WH if you use a different warehouse.
+-- Fill in your GitHub repo in the two SUBJECT lines, and change COMPUTE_WH if you use a different warehouse.
 
 -- Where DCM project objects live. SYSADMIN owns it, and also owns the DEV project.
 USE ROLE SYSADMIN;
@@ -41,3 +41,7 @@ CREATE USER IF NOT EXISTS DEMO_CI_DEPLOY
 
 GRANT ROLE DEMO_PROD_DEPLOYER TO USER DEMO_CI_PLAN;
 GRANT ROLE DEMO_PROD_DEPLOYER TO USER DEMO_CI_DEPLOY;
+
+-- Check: each should return one OIDC row with your repo in the subject.
+SHOW USER WORKLOAD IDENTITY AUTHENTICATION METHODS FOR USER DEMO_CI_PLAN;
+SHOW USER WORKLOAD IDENTITY AUTHENTICATION METHODS FOR USER DEMO_CI_DEPLOY;
