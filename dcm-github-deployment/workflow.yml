@@ -1,0 +1,51 @@
+# Copy to .github/workflows/snowflake.yml at your repo root.
+# Pull requests plan PROD. Pushes to main deploy PROD.
+name: Snowflake
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['snowflake/demo/**', '.github/workflows/snowflake.yml']
+  push:
+    branches: [main]
+    paths: ['snowflake/demo/**', '.github/workflows/snowflake.yml']
+
+permissions:
+  id-token: write # lets GitHub issue the short-lived Snowflake login token
+  contents: read
+
+env:
+  SNOWFLAKE_ACCOUNT: <ORG>-<ACCOUNT>
+
+defaults:
+  run:
+    working-directory: snowflake/demo
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: snowflakedb/snowflake-actions@v3
+        with:
+          use-oidc: true
+      - run: snow dcm create --target PROD --if-not-exists -x
+      - run: snow dcm plan --target PROD -x
+
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: snowflakedb/snowflake-actions@v3
+        with:
+          use-oidc: true
+      - run: snow dcm create --target PROD --if-not-exists -x
+      - run: snow dcm deploy --target PROD --alias "${{ github.sha }}" -x
+      - name: Smoke test
+        run: snow sql -x -q "CALL DEMO_PROD.RAW.LOAD_CONTACTS()"

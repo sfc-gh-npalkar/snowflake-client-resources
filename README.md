@@ -11,6 +11,7 @@ A collection of guides, demos, and reference materials for Snowflake capabilitie
 | [multi-invoice-document-splitting](multi-invoice-document-splitting/) | Splitting a scanned PDF containing many invoices into one row per invoice — `AI_PARSE_DOCUMENT`, `AI_CLASSIFY` and `AI_EXTRACT`, page-level classification to exclude supporting documents, and credit memos signed negative |
 | [call-transcript-lead-scoring](call-transcript-lead-scoring/) | Turning unstructured call transcripts into scored, governed leads — `AI_EXTRACT`, `AI_CLASSIFY`, `AI_SUMMARIZE_AGG`, `AI_COUNT_TOKENS` for cost sizing, a semantic view with verified queries, a Snowpark propensity model served as a UDF, and a Cortex Agent that routes between population queries and per-record scoring |
 | [domain-risk-detection-demo](domain-risk-detection-demo/) | Detecting abusive domain registrations — Feature Store, Model Registry, Dynamic Tables, Cortex AI functions, and a Streamlit investigation app |
+| [dcm-github-deployment](dcm-github-deployment/) | Deploying Snowflake objects from a Git repo with DCM Projects — test in DEV from the CLI, plan PROD on pull request, deploy PROD on merge via GitHub Actions, with no passwords or keys stored in GitHub |
 
 ---
 

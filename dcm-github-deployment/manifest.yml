@@ -1,0 +1,22 @@
+manifest_version: 2
+type: DCM_PROJECT
+default_target: DEV
+
+targets:
+  DEV:
+    account_identifier: <ORG>-<ACCOUNT>
+    project_name: DCM_ADMIN.PROJECTS.DEMO_DEV
+    project_owner: SYSADMIN
+    templating_config: DEV
+  PROD:
+    account_identifier: <ORG>-<ACCOUNT>
+    project_name: DCM_ADMIN.PROJECTS.DEMO_PROD
+    project_owner: DEMO_PROD_DEPLOYER
+    templating_config: PROD
+
+templating:
+  configurations:
+    DEV:
+      db: DEMO_DEV
+    PROD:
+      db: DEMO_PROD
