@@ -92,3 +92,24 @@ WHERE rule <> 'NO_CHANGE'
 -- Review screen:
 -- SELECT file_path, prospect_id, match_type, field, old_value, new_value, rule, needs_review
 -- FROM VOICE_CAPTURE.PIPELINE.PENDING_UPDATES WHERE decision = 'PENDING' ORDER BY needs_review DESC, file_path, field;
+
+-- 4d. Keep the queue current automatically: every new extraction is queued within about a minute.
+CREATE STREAM IF NOT EXISTS VOICE_CAPTURE.PIPELINE.VOICE_NOTE_EXTRACT_STREAM
+  ON TABLE VOICE_CAPTURE.PIPELINE.VOICE_NOTE_EXTRACT;
+
+CREATE TASK IF NOT EXISTS VOICE_CAPTURE.PIPELINE.QUEUE_UPDATES
+  TARGET_COMPLETION_INTERVAL = '1 MINUTE'
+  WHEN SYSTEM$STREAM_HAS_DATA('VOICE_CAPTURE.PIPELINE.VOICE_NOTE_EXTRACT_STREAM')
+AS
+INSERT INTO VOICE_CAPTURE.PIPELINE.PENDING_UPDATES
+  (file_path, prospect_id, match_type, field, old_value, new_value, rule, needs_review)
+SELECT v.file_path, v.prospect_id, v.match_type, v.field, v.old_value, v.new_value, v.rule,
+       v.rule IN ('CONFLICT','PAST_DATE','NEW_PROSPECT') OR v.match_type = 'FUZZY'
+FROM VOICE_CAPTURE.PIPELINE.V_PROPOSED_UPDATES v
+WHERE v.rule <> 'NO_CHANGE'
+  AND v.file_path IN (SELECT file_path FROM VOICE_CAPTURE.PIPELINE.VOICE_NOTE_EXTRACT_STREAM
+                      WHERE METADATA$ACTION = 'INSERT')
+  AND NOT EXISTS (SELECT 1 FROM VOICE_CAPTURE.PIPELINE.PENDING_UPDATES q
+                  WHERE q.file_path = v.file_path AND q.field = v.field);
+
+ALTER TASK VOICE_CAPTURE.PIPELINE.QUEUE_UPDATES RESUME;

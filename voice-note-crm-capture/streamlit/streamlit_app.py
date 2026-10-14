@@ -8,7 +8,8 @@ from datetime import datetime
 
 import streamlit as st
 
-DB = "VOICE_CAPTURE.PIPELINE"
+DB = os.getenv("VOICE_DB", "VOICE_CAPTURE.PIPELINE")       # database.schema holding the pipeline
+PROMOTE = os.getenv("VOICE_PROMOTE", "false").lower() == "true"  # see README, "Promotion"
 STAGE = f"@{DB}.VOICE_STAGE"
 
 st.set_page_config(page_title="Voice notes", page_icon=":microphone:", layout="wide")
@@ -79,5 +80,5 @@ with tab_review:
 
     st.divider()
     if st.button("Send decisions to CRM", type="primary"):
-        result = session.sql(f"CALL {DB}.WRITE_BACK(FALSE)").collect()[0][0]
+        result = session.sql(f"CALL {DB}.WRITE_BACK({'TRUE' if PROMOTE else 'FALSE'})").collect()[0][0]
         st.success(result)

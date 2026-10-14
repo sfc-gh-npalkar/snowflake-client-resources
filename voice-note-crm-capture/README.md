@@ -82,7 +82,7 @@ Within a minute `VOICE_NOTE_EXTRACT` has one row per note, with empty fields for
 associate didn't say.
 
 **5. Review queue.** Edit `sql/04_review.sql` so the column names and budget labels match your
-prospects table, then run it. `PENDING_UPDATES` shows one row per proposed change:
+prospects table, then run it. `PENDING_UPDATES` shows one row per proposed change, and a task keeps it current as new notes arrive:
 
 | rule | Meaning | Needs review |
 |---|---|---|
