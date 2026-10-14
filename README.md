@@ -12,6 +12,7 @@ A collection of guides, demos, and reference materials for Snowflake capabilitie
 | [call-transcript-lead-scoring](call-transcript-lead-scoring/) | Turning unstructured call transcripts into scored, governed leads — `AI_EXTRACT`, `AI_CLASSIFY`, `AI_SUMMARIZE_AGG`, `AI_COUNT_TOKENS` for cost sizing, a semantic view with verified queries, a Snowpark propensity model served as a UDF, and a Cortex Agent that routes between population queries and per-record scoring |
 | [domain-risk-detection-demo](domain-risk-detection-demo/) | Detecting abusive domain registrations — Feature Store, Model Registry, Dynamic Tables, Cortex AI functions, and a Streamlit investigation app |
 | [dcm-github-deployment](dcm-github-deployment/) | Deploying Snowflake objects from a Git repo with DCM Projects — test in DEV from the CLI, plan PROD on pull request, deploy PROD on merge via GitHub Actions, with no passwords or keys stored in GitHub, plus a Cursor skill that walks you through setup |
+| [voice-note-crm-capture](voice-note-crm-capture/) | Turning associates' voice notes into reviewed CRM updates on Snowflake Postgres — `AI_TRANSCRIBE`, `AI_COMPLETE` with a JSON schema, stream-triggered serverless tasks, a review queue with conflict detection, and a Snowpark write-back to Postgres over an external access integration |
 
 ---
 
