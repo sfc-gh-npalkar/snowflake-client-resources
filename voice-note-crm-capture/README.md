@@ -39,7 +39,8 @@ touch your existing tables. It adds:
 
 - **Region.** `AI_TRANSCRIBE` runs in AWS US West 2, AWS US East 1, AWS EU Central 1 and Azure East US 2
   ([docs](https://docs.snowflake.com/en/sql-reference/functions/ai_transcribe)). Snowflake Postgres
-  mirroring is AWS and Azure only.
+  mirroring is in preview, runs on AWS and Azure only, and the mirror must be in the same account, region
+  and cloud as the Postgres instance ([docs](https://docs.snowflake.com/en/user-guide/snowflake-postgres/postgres-data-mirroring)).
 - **Roles.** ACCOUNTADMIN for `01_setup.sql`; any role with `SNOWFLAKE.CORTEX_USER` for steps 02–05.
 - **Python packages.** The Anaconda terms must be accepted (Snowsight » Admin » Terms).
 - **Your Postgres instance tier** is STANDARD or HIGH MEMORY (mirroring doesn't support BURSTABLE).
