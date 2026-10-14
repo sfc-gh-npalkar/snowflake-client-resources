@@ -110,7 +110,7 @@ database `VOICE_CAPTURE` and schema `PIPELINE`.
 
 ## Design choices
 
-- **Why `AI_COMPLETE` with a JSON schema, not `AI_EXTRACT`.** We tested both on real dictations.
+- **Why `AI_COMPLETE` with a JSON schema, not `AI_EXTRACT`.** We tested both on sample dictations.
   `AI_EXTRACT` returned the text "None" for missing fields, added objections nobody mentioned, and got
   relative dates ("Friday") wrong. A schema with no required fields lets the model leave out anything
   the associate didn't say, and an `enum` keeps categories to your picklist.

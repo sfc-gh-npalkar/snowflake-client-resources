@@ -1,5 +1,5 @@
 -- Step 3: structured extraction. Run one statement at a time.
--- Why AI_COMPLETE + a JSON schema rather than AI_EXTRACT: we tested both on real dictations. AI_EXTRACT
+-- Why AI_COMPLETE + a JSON schema rather than AI_EXTRACT: we tested both on sample dictations. AI_EXTRACT
 -- returned the string "None" for missing fields, invented objections, and can't constrain a field to a
 -- picklist. A schema with no required fields lets the model omit anything that wasn't said (absent = null).
 -- ADAPT: the interest_category enum to your category picklist, and the prompt's business wording.
