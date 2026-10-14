@@ -17,15 +17,11 @@ st.set_page_config(page_title="Voice notes", page_icon=":microphone:", layout="w
 
 @st.cache_resource
 def get_session():
-    try:
-        from snowflake.snowpark.context import get_active_session
-        return get_active_session()
-    except Exception:
-        conn = st.connection(
-            "snowflake",
-            connection_name=os.getenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME") or "default",
-        )
-        return conn.session()
+    # Inside Snowflake the platform provides the "snowflake" connection; locally it reads
+    # [connections.snowflake] or SNOWFLAKE_DEFAULT_CONNECTION_NAME.
+    name = os.getenv("SNOWFLAKE_DEFAULT_CONNECTION_NAME")
+    conn = st.connection("snowflake", connection_name=name) if name else st.connection("snowflake")
+    return conn.session()
 
 
 session = get_session()
