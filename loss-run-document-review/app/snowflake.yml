@@ -1,0 +1,13 @@
+definition_version: 2
+entities:
+  loss_run_review:
+    type: streamlit
+    identifier:
+      name: LOSS_RUN_REVIEW
+      database: LOSS_RUN_DEMO
+      schema: PIPELINE
+    query_warehouse: LOSS_RUN_WH
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py
+      - environment.yml

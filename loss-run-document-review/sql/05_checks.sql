@@ -1,0 +1,127 @@
+-- 05_checks.sql
+-- Row-level checks, document gate, and human corrections.
+-- AI_EXTRACT gives no per-row scores, so rows are flagged by deterministic checks.
+
+USE SCHEMA LOSS_RUN_DEMO.PIPELINE;
+
+-- Thresholds: field score < 0.7 and table score < 0.6 send items to review.
+
+-- Human corrections: one row per corrected field.
+CREATE TABLE IF NOT EXISTS EXTRACTION_OVERRIDES (
+    FILE_PATH       VARCHAR,
+    TARGET          VARCHAR,   -- 'HEADER' or 'LINE'
+    LINE_NUMBER     INT,       -- NULL for header fields
+    FIELD_NAME      VARCHAR,
+    ORIGINAL_VALUE  VARCHAR,
+    CORRECTED_VALUE VARCHAR,
+    REVIEWED_BY     VARCHAR DEFAULT CURRENT_USER(),
+    REVIEWED_AT     TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- Document-level approvals.
+CREATE TABLE IF NOT EXISTS DOCUMENT_REVIEWS (
+    FILE_PATH   VARCHAR,
+    DECISION    VARCHAR,       -- 'APPROVED' or 'REJECTED'
+    NOTE        VARCHAR,
+    REVIEWED_BY VARCHAR DEFAULT CURRENT_USER(),
+    REVIEWED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+);
+
+-- Header fields with the latest correction applied.
+CREATE OR REPLACE VIEW HEADER_FIELDS_CURRENT AS
+SELECT h.FILE_PATH, h.FIELD_NAME, h.FIELD_VALUE AS EXTRACTED_VALUE, h.SCORE,
+       COALESCE(o.CORRECTED_VALUE, h.FIELD_VALUE) AS FIELD_VALUE,
+       o.CORRECTED_VALUE IS NOT NULL               AS CORRECTED,
+       o.CORRECTED_VALUE IS NULL AND (h.SCORE < 0.7 OR h.FIELD_VALUE IS NULL) AS NEEDS_REVIEW
+FROM LOSS_RUN_HEADER_FIELDS h
+LEFT JOIN EXTRACTION_OVERRIDES o
+  ON o.FILE_PATH = h.FILE_PATH AND o.TARGET = 'HEADER' AND o.FIELD_NAME = h.FIELD_NAME
+QUALIFY ROW_NUMBER() OVER (PARTITION BY h.FILE_PATH, h.FIELD_NAME ORDER BY o.REVIEWED_AT DESC NULLS LAST) = 1;
+
+-- Claim lines with corrections applied and row-level flags.
+CREATE OR REPLACE VIEW LOSS_RUN_LINES_CURRENT AS
+WITH o AS (
+    SELECT FILE_PATH, LINE_NUMBER, FIELD_NAME, CORRECTED_VALUE
+    FROM EXTRACTION_OVERRIDES
+    WHERE TARGET = 'LINE'
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY FILE_PATH, LINE_NUMBER, FIELD_NAME ORDER BY REVIEWED_AT DESC) = 1
+),
+p AS (
+    SELECT * FROM o PIVOT (MAX(CORRECTED_VALUE) FOR FIELD_NAME IN ('paid', 'reserve', 'expense', 'status', 'claim_number'))
+        AS x (FILE_PATH, LINE_NUMBER, PAID_FIX, RESERVE_FIX, EXPENSE_FIX, STATUS_FIX, CLAIM_FIX)
+),
+l AS (
+    SELECT
+        l.FILE_PATH, l.LINE_NUMBER, lp.PAGE_INDEX,
+        COALESCE(p.CLAIM_FIX, l.CLAIM_NUMBER)               AS CLAIM_NUMBER,
+        l.CLAIM_KEY, l.LOSS_DATE, l.COVERAGE, l.DESCRIPTION,
+        COALESCE(p.STATUS_FIX, l.STATUS)                    AS STATUS,
+        COALESCE(TRY_TO_NUMBER(p.PAID_FIX, 18, 2), l.PAID)       AS PAID,
+        COALESCE(TRY_TO_NUMBER(p.RESERVE_FIX, 18, 2), l.RESERVE) AS RESERVE,
+        COALESCE(TRY_TO_NUMBER(p.EXPENSE_FIX, 18, 2), l.EXPENSE) AS EXPENSE,
+        l.INCURRED_PRINTED, l.PAID_RAW, l.RESERVE_RAW, l.EXPENSE_RAW, l.TABLE_SCORE,
+        p.LINE_NUMBER IS NOT NULL                           AS CORRECTED,
+        l.AMOUNT_PARSE_ISSUE AND p.LINE_NUMBER IS NULL      AS AMOUNT_PARSE_ISSUE
+    FROM LOSS_RUN_LINES l
+    LEFT JOIN LOSS_RUN_LINE_PAGES lp USING (FILE_PATH, LINE_NUMBER)
+    LEFT JOIN p USING (FILE_PATH, LINE_NUMBER)
+)
+SELECT l.*,
+    CASE WHEN STATUS ILIKE 'open%' OR STATUS ILIKE 'reopen%' THEN 'Open'
+         WHEN STATUS ILIKE ANY ('clos%', 'clsd%', 'cwp%') THEN 'Closed'
+         WHEN STATUS ILIKE 'report%' THEN 'Report Only'
+         ELSE 'Other' END                                       AS STATUS_GROUP,
+    COALESCE(PAID,0) + COALESCE(RESERVE,0) + COALESCE(EXPENSE,0) AS INCURRED_CALC,
+    ARRAY_COMPACT(ARRAY_CONSTRUCT(
+        IFF(AMOUNT_PARSE_ISSUE, 'amount cell holds more than one number', NULL),
+        IFF(CLAIM_NUMBER IS NULL, 'missing claim number', NULL),
+        IFF(PAGE_INDEX IS NULL, 'claim not found on any page', NULL),
+        IFF(LOSS_DATE IS NULL, 'missing or unreadable loss date', NULL),
+        IFF(INCURRED_PRINTED IS NOT NULL
+            AND ABS(INCURRED_PRINTED - (COALESCE(PAID,0)+COALESCE(RESERVE,0)+COALESCE(EXPENSE,0))) > 1,
+            'printed incurred != paid + reserve + expense', NULL)
+    )) AS ROW_FLAGS
+FROM l;
+
+-- Document gate: table score, header scores, and tie-out of line totals to printed totals.
+CREATE OR REPLACE VIEW DOCUMENT_GATE AS
+WITH lines AS (
+    SELECT FILE_PATH,
+           COUNT(*)                    AS LINE_COUNT,
+           COUNT(DISTINCT CLAIM_KEY)   AS CLAIM_COUNT_LINES,
+           SUM(PAID)                   AS PAID_LINES,
+           SUM(RESERVE)                AS RESERVE_LINES,
+           COUNT_IF(ARRAY_SIZE(ROW_FLAGS) > 0) AS FLAGGED_LINES,
+           MAX(TABLE_SCORE)            AS TABLE_SCORE
+    FROM LOSS_RUN_LINES_CURRENT GROUP BY FILE_PATH
+),
+hdr AS (
+    SELECT FILE_PATH,
+           MAX(IFF(FIELD_NAME='insured_name',   FIELD_VALUE, NULL)) AS INSURED_NAME,
+           MAX(IFF(FIELD_NAME='carrier_name',   FIELD_VALUE, NULL)) AS CARRIER_NAME,
+           MAX(IFF(FIELD_NAME='policy_number',  FIELD_VALUE, NULL)) AS POLICY_NUMBER,
+           MAX(IFF(FIELD_NAME='valuation_date', FIELD_VALUE, NULL)) AS VALUATION_DATE,
+           TRY_TO_NUMBER(REGEXP_SUBSTR(MAX(IFF(FIELD_NAME='claim_count', FIELD_VALUE, NULL)), '[0-9]+')) AS CLAIM_COUNT_PRINTED,
+           PARSE_AMOUNT(MAX(IFF(FIELD_NAME='total_paid', FIELD_VALUE, NULL)))     AS PAID_PRINTED,
+           PARSE_AMOUNT(MAX(IFF(FIELD_NAME='total_incurred', FIELD_VALUE, NULL))) AS INCURRED_PRINTED,
+           COUNT_IF(NEEDS_REVIEW)                                                  AS HEADER_FIELDS_TO_REVIEW
+    FROM HEADER_FIELDS_CURRENT GROUP BY FILE_PATH
+),
+rev AS (
+    SELECT FILE_PATH, DECISION FROM DOCUMENT_REVIEWS
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY FILE_PATH ORDER BY REVIEWED_AT DESC) = 1
+)
+SELECT h.*, l.LINE_COUNT, l.CLAIM_COUNT_LINES, l.PAID_LINES, l.RESERVE_LINES, l.FLAGGED_LINES, l.TABLE_SCORE,
+    ARRAY_COMPACT(ARRAY_CONSTRUCT(
+        IFF(l.TABLE_SCORE < 0.6, 'low table score', NULL),
+        IFF(h.HEADER_FIELDS_TO_REVIEW > 0, h.HEADER_FIELDS_TO_REVIEW || ' header field(s) need review', NULL),
+        IFF(l.FLAGGED_LINES > 0, l.FLAGGED_LINES || ' line(s) flagged', NULL),
+        IFF(h.PAID_PRINTED IS NOT NULL AND ABS(h.PAID_PRINTED - COALESCE(l.PAID_LINES,0)) > 1,
+            'line paid does not tie to printed total', NULL),
+        IFF(h.CLAIM_COUNT_PRINTED IS NOT NULL AND h.CLAIM_COUNT_PRINTED <> l.CLAIM_COUNT_LINES,
+            'claim count does not match printed count', NULL)
+    )) AS GATE_REASONS,
+    COALESCE(r.DECISION, IFF(ARRAY_SIZE(GATE_REASONS) = 0, 'AUTO_APPROVED', 'NEEDS_REVIEW')) AS STATUS
+FROM hdr h
+JOIN lines l USING (FILE_PATH)
+LEFT JOIN rev r USING (FILE_PATH);
