@@ -13,6 +13,7 @@ A collection of guides, demos, and reference materials for Snowflake capabilitie
 | [domain-risk-detection-demo](domain-risk-detection-demo/) | Detecting abusive domain registrations — Feature Store, Model Registry, Dynamic Tables, Cortex AI functions, and a Streamlit investigation app |
 | [dcm-github-deployment](dcm-github-deployment/) | Deploying Snowflake objects from a Git repo with DCM Projects — test in DEV from the CLI, plan PROD on pull request, deploy PROD on merge via GitHub Actions, with no passwords or keys stored in GitHub, plus a Cursor skill that walks you through setup |
 | [voice-note-crm-capture](voice-note-crm-capture/) | Turning associates' voice notes into reviewed CRM updates on Snowflake Postgres — `AI_TRANSCRIBE`, `AI_COMPLETE` with a JSON schema, stream-triggered serverless tasks, a review queue with conflict detection, and a Snowpark write-back to Postgres over an external access integration |
+| [snowflake-postgres-sync](snowflake-postgres-sync/) | Serving Snowflake data to an app from Snowflake Postgres, and mirroring app data back — a schema-level mirror that picks up new tables automatically, and a stream-driven sync that pushes only changed rows to Postgres |
 
 ---
 
