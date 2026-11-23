@@ -1,9 +1,11 @@
 # Serving Snowflake Data from Snowflake Postgres, and Mirroring It Back
 
-Your app needs millisecond reads, so it reads from Postgres, not from analytical tables. That
-leaves two sync jobs: Snowflake results out to Postgres, and app data (logs, events, operational
-rows) back into Snowflake. This guide sets both up on **Snowflake Postgres**, so there's one
-platform, one bill, and no external sync service to maintain.
+This guide sets up two data paths between Snowflake and a Snowflake Postgres instance:
+
+- **Snowflake → Postgres:** changed rows from Snowflake tables are pushed into Postgres tables
+  that an app reads.
+- **Postgres → Snowflake:** a managed mirror copies the tables an app writes to (logs, events,
+  operational rows) into Snowflake.
 
 ```
 Snowflake marts ── stream ──► SYNC_TO_POSTGRES (task, every 15 min, only changed rows) ──► Postgres "serving" schema ──► your app
@@ -11,21 +13,20 @@ Snowflake marts ── stream ──► SYNC_TO_POSTGRES (task, every 15 min, on
 Snowflake  ◄── managed mirror (~30s via $live, new tables picked up automatically) ◄── Postgres "app" schema ◄── your app writes
 ```
 
-## What this solves
+## How each path works
 
-| Problem | How |
+| Path | Mechanism |
 |---|---|
-| App reads are slow or burn warehouse credits | The app reads Postgres directly. Snowflake isn't in the request path, so there's no query compile step and no warehouse running for page loads. |
-| Getting app data into Snowflake means a connector you reconfigure for every new table | A schema-level mirror copies every table in the `app` schema, including tables created later. Column changes flow through too. |
-| Pushing Snowflake results out means diff queries to find what changed | A stream records exactly which rows changed since the last run. Only those rows move, and the task doesn't run when nothing changed. |
-| Two vendors, two bills | The Postgres instance and both sync paths are billed through your Snowflake account. |
+| App reads | The app queries Postgres directly; Snowflake isn't in the request path. |
+| Postgres → Snowflake | A schema-level mirror copies every table in the `app` schema, including tables created later. Column changes are applied too. |
+| Snowflake → Postgres | A stream on each source table records changed rows. A task pushes only those rows, and is skipped when no stream has data. |
 
-**Coming:** Snowflake-to-Postgres mirroring (the reverse of step 2) is in private preview. When
-it's available to you, it can replace step 3. Ask your account team about early access.
+Snowflake-to-Postgres mirroring (the reverse of step 2) is in private preview. Where it's
+available, it can replace step 3.
 
-**Tested end to end** on AWS: a 5,000-row initial load, then 100 updates and 1 delete moved as
-exactly 100 upserts and 1 delete, with row counts and column totals matching on both sides. A
-table created later in the `app` schema was mirrored, with its rows, about a minute later.
+The guide was run end to end on AWS: a 5,000-row initial load, then 100 updates and 1 delete,
+which moved as 100 upserts and 1 delete with matching row counts and column totals. A table
+created later in the `app` schema was mirrored, with its rows, about a minute later.
 
 ## Files
 
