@@ -41,8 +41,8 @@ FROM TABLE(FLATTEN(INPUT => PARSE_JSON(SYSTEM$GET_SNOWFLAKE_EGRESS_IP_RANGES()))
 CREATE OR REPLACE TABLE PG_SYNC.PIPELINE.SITE_DAILY_KPIS AS
 SELECT 'S' || LPAD(MOD(SEQ4(), 50)::STRING, 3, '0')           AS site_id,
        DATEADD(day, -FLOOR(SEQ4() / 50), CURRENT_DATE())      AS kpi_date,
-       UNIFORM(100, 900, RANDOM(1))                           AS washes,
-       UNIFORM(500, 3000, RANDOM(2))                          AS members,
+       UNIFORM(100, 900, RANDOM(1))                           AS orders,
+       UNIFORM(500, 3000, RANDOM(2))                          AS customers,
        UNIFORM(1000, 20000, RANDOM(3))::NUMBER(12,2)          AS revenue,
        CURRENT_TIMESTAMP()                                    AS updated_at
 FROM TABLE(GENERATOR(ROWCOUNT => 5000));
@@ -168,7 +168,7 @@ $$;
 -- 6. First run: loads the full table (SHOW_INITIAL_ROWS). Then change something and run again.
 CALL SYNC_TO_POSTGRES();       -- expect: serving.site_daily_kpis: 5000 upserted, 0 deleted
 
-UPDATE PG_SYNC.PIPELINE.SITE_DAILY_KPIS SET washes = washes + 1 WHERE site_id = 'S001';
+UPDATE PG_SYNC.PIPELINE.SITE_DAILY_KPIS SET orders = orders + 1 WHERE site_id = 'S001';
 DELETE FROM PG_SYNC.PIPELINE.SITE_DAILY_KPIS WHERE site_id = 'S002' AND kpi_date = CURRENT_DATE();
 CALL SYNC_TO_POSTGRES();       -- expect: 100 upserted, 1 deleted (only the changed rows move)
 CALL SYNC_TO_POSTGRES();       -- expect: no changes

@@ -16,8 +16,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA serving GRANT SELECT ON TABLES TO application
 CREATE TABLE IF NOT EXISTS serving.site_daily_kpis (
   site_id      text    NOT NULL,
   kpi_date     date    NOT NULL,
-  washes       integer,
-  members      integer,
+  orders       integer,
+  customers      integer,
   revenue      numeric(12,2),
   updated_at   timestamptz,
   PRIMARY KEY (site_id, kpi_date)

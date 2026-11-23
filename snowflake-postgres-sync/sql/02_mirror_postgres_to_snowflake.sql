@@ -20,15 +20,15 @@ CALL SNOWFLAKE.POSTGRES.CREATE_MIRROR(
 CALL SNOWFLAKE.POSTGRES.LIST_MIRRORED_TABLES('APP_MIRROR');
 
 -- Prove it: insert in Postgres, read it here.
---   Postgres:  INSERT INTO app.request_log (endpoint, site_id, latency_ms) VALUES ('/offers', 'S001', 12);
+--   Postgres:  INSERT INTO app.request_log (endpoint, site_id, latency_ms) VALUES ('/orders', 'S001', 12);
 SELECT COUNT(*) FROM APP_MIRROR.APP.REQUEST_LOG;        -- merged on the refresh interval
 SELECT COUNT(*) FROM APP_MIRROR.APP.REQUEST_LOG$live;   -- includes unmerged changes, ~30s behind
 
 -- Prove new tables need no reconfiguration:
---   Postgres:  CREATE TABLE app.offer_events (id bigint PRIMARY KEY, offer text, created_at timestamptz DEFAULT now());
---              INSERT INTO app.offer_events VALUES (1, 'free-upgrade');
-CALL SNOWFLAKE.POSTGRES.LIST_MIRRORED_TABLES('APP_MIRROR');   -- offer_events appears, REPLICATING
-SELECT * FROM APP_MIRROR.APP.OFFER_EVENTS$live;
+--   Postgres:  CREATE TABLE app.order_events (id bigint PRIMARY KEY, status text, created_at timestamptz DEFAULT now());
+--              INSERT INTO app.order_events VALUES (1, 'created');
+CALL SNOWFLAKE.POSTGRES.LIST_MIRRORED_TABLES('APP_MIRROR');   -- order_events appears, REPLICATING
+SELECT * FROM APP_MIRROR.APP.ORDER_EVENTS$live;
 
 -- What it costs: the apply task is serverless and named APPLY_MIRROR_<mirror_name>.
 SELECT start_time, credits_used
