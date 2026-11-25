@@ -36,7 +36,11 @@ Extract loss runs with Snowflake Cortex AI, flag what needs a human, and review 
    ALTER STAGE LOSS_RUN_DEMO.PIPELINE.DOCS REFRESH;
    ```
 3. Run `sql/02` through `sql/07` in order.
-4. Deploy the app: `cd app && snow streamlit deploy --replace`.
+4. Deploy the app: `cd app && snow streamlit deploy --replace`. It runs on the container runtime, so attach the PyPI mirror once to install `pypdfium2` for page rendering:
+   ```sql
+   ALTER STREAMLIT LOSS_RUN_DEMO.PIPELINE.LOSS_RUN_REVIEW
+     SET ARTIFACT_REPOSITORIES = (snowflake.snowpark.pypi_shared_repository);
+   ```
 5. If your account has a Snowflake CoWork object, add the agent to it so it shows in the picker:
    ```sql
    ALTER SNOWFLAKE INTELLIGENCE <your_object> ADD AGENT SNOWFLAKE_INTELLIGENCE.AGENTS.LOSS_RUN_ANALYST;

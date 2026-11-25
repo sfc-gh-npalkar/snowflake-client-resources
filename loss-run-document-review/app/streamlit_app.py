@@ -18,12 +18,10 @@ def q(sql, params=None):
 
 @st.cache_data(show_spinner=False)
 def page_image(file_path: str, page_index: int):
-    """Render one PDF page to PNG. Returns None if the renderer is unavailable."""
-    try:
-        import pypdfium2 as pdfium
-    except ImportError:
-        return None
-    data = session.file.get_stream(f"{STAGE}/{file_path}").read()
+    """Render one PDF page to PNG."""
+    import pypdfium2 as pdfium
+
+    data = session.file.get_stream(f"{STAGE}/{file_path}", decompress=False).read()
     page = pdfium.PdfDocument(data)[page_index]
     buf = io.BytesIO()
     page.render(scale=1.6).to_pil().save(buf, format="PNG")
@@ -130,9 +128,6 @@ with left:
         f"Page (0–{int(pages.PAGE_COUNT.max()) - 1})  ·  claim pages: {linked}",
         min_value=0, max_value=int(pages.PAGE_COUNT.max()) - 1, value=default,
     )
-    img = page_image(doc, int(page_index))
-    if img:
-        st.image(img, use_container_width=True)
-    else:
-        st.caption("Page image unavailable; showing parsed page text.")
+    st.image(page_image(doc, int(page_index)), use_container_width=True)
+    with st.expander("Parsed page text"):
         st.markdown(pages.loc[pages.PAGE_INDEX == page_index, "PAGE_CONTENT"].iat[0])

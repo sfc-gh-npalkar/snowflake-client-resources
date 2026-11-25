@@ -1,7 +1,0 @@
-name: loss_run_review
-channels:
-  - snowflake
-dependencies:
-  - pandas
-  - pypdfium2
-  - pillow
